@@ -7,15 +7,12 @@ const ArenaAllocator = std.heap.ArenaAllocator;
 
 const FileReader = struct {
     root_path: []const u8,
-    allocator: ArenaAllocator,
-
-    fn init(root_path: []const u8) FileReader {
-        return FileReader{ .root_path = root_path, .allocator = ArenaAllocator.init(std.heap.page_allocator) };
-    }
 
     // TODO: simplify error signature
     fn read(self: *FileReader, file_name: []const u8, writer: anytype) error{ ConnectionTimedOut, NetNameDeleted, NotOpenForReading, ConnectionResetByPeer, BrokenPipe, OperationAborted, InputOutput, ReadError, OutOfMemory, SharingViolation, PathAlreadyExists, FileNotFound, AccessDenied, PipeBusy, NameTooLong, InvalidUtf8, BadPathName, Unexpected, NetworkNotFound, InvalidHandle, SymLinkLoop, ProcessFdQuotaExceeded, SystemFdQuotaExceeded, NoDevice, SystemResources, FileTooBig, IsDir, NoSpaceLeft, NotDir, DeviceBusy, FileLocksNotSupported, FileBusy, WouldBlock }!u64 {
-        const allocator = self.allocator.allocator();
+        var arena = ArenaAllocator.init(std.heap.page_allocator);
+        defer arena.deinit();
+        const allocator = arena.allocator();
 
         const file_path = try fmt.allocPrint(allocator, "{s}/{s}", .{ self.root_path, file_name });
 
@@ -31,10 +28,6 @@ const FileReader = struct {
 
         return write_length;
     }
-
-    fn deinit(self: *FileReader) void {
-        self.allocator.deinit();
-    }
 };
 
 test "FileReader.read" {
@@ -44,8 +37,7 @@ test "FileReader.read" {
 
     const root_path = try fs.cwd().realpathAlloc(allocator, "test-data");
 
-    var reader = FileReader.init(root_path);
-    defer reader.deinit();
+    var reader = FileReader{ .root_path = root_path };
 
     var buffer = try allocator.alloc(u8, 1024);
     var writer = io.FixedBufferStream([]u8){ .buffer = buffer, .pos = 0 };
@@ -57,3 +49,12 @@ test "FileReader.read" {
 
     try std.testing.expect(std.mem.eql(u8, "abc123!", buffer[0..actual_size]));
 }
+
+const Server = struct {
+    address: []const u8,
+    port: u16,
+
+    fn start() void {}
+
+    fn stop() void {}
+};
