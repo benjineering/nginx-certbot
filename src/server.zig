@@ -37,22 +37,23 @@ const FileReader = struct {
     }
 };
 
-test "FileReader.read - file exists" {
-    const root_path = "/users/8enwi/onedrive/desktop";
+test "FileReader.read" {
+    var arena = ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var allocator = arena.allocator();
+
+    const root_path = try fs.cwd().realpathAlloc(allocator, "test-data");
 
     var reader = FileReader.init(root_path);
     defer reader.deinit();
 
-    var arena = ArenaAllocator.init(std.heap.page_allocator);
-    defer arena.deinit();
-    var allocator = arena.allocator();
     var buffer = try allocator.alloc(u8, 1024);
     var writer = io.FixedBufferStream([]u8){ .buffer = buffer, .pos = 0 };
 
     const actual_size = try reader.read("xxx", &writer);
 
-    const expected_size: u64 = 43;
+    const expected_size: u64 = 7;
     try std.testing.expectEqual(expected_size, actual_size);
 
-    std.debug.print("{s}\n", .{writer.buffer[0..actual_size]});
+    try std.testing.expect(std.mem.eql(u8, "abc123!", buffer[0..actual_size]));
 }
